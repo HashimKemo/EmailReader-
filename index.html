@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>قارئ النشرات</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2e6f4e">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Noto+Naskh+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf8f3;
+    --card:#ffffff;
+    --text:#2b2620;
+    --muted:#8a8478;
+    --accent:#2e6f4e; /* نايل جرين */
+    --gold:#c9a227;
+    --border:#ece7db;
+  }
+  [data-theme="dark"]{
+    --bg:#181614;
+    --card:#221f1c;
+    --text:#eee9df;
+    --muted:#9a9488;
+    --border:#332f29;
+  }
+  
+/* 1. تعريف الخط */
+@font-face {
+  font-family: 'Wahran';
+  src: url('Wahran-Bold.otf') format('truetype'); /* اسم الملف اللي رفعته */
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap; /* يخلي الصفحة تحمل أسرع */
+}
+
+/* 2. تطبيقه على الصفحة كلها */
+body {
+  font-family: 'Wahran', sans-serif;
+  font-size: 20px;
+  line-height: 1.8;
+}
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    transition:background .3s,color .3s;
+  }
+  header{
+    padding:20px 16px 12px;
+    display:flex;justify-content:space-between;align-items:center;
+    position:sticky;top:0;background:var(--bg);z-index:10;
+    border-bottom:1px solid var(--border);
+  }
+  header h1{font-size:20px;font-weight:700;color:var(--accent)}
+  #themeBtn{
+    background:none;border:1px solid var(--border);border-radius:10px;
+    padding:8px 12px;font-size:14px;color:var(--text);cursor:pointer;
+  }
+  #list{max-width:700px;margin:0 auto;padding:16px}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:16px 18px;
+    margin-bottom:12px;
+    cursor:pointer;
+    transition:transform .15s;
+  }
+  .card:active{transform:scale(.98)}
+  .card .sender{font-size:13px;color:var(--gold);font-weight:600;margin-bottom:4px}
+  .card h2{font-size:17px;font-weight:700;margin-bottom:6px;line-height:1.4}
+  .card .excerpt{font-size:14px;color:var(--muted);line-height:1.6;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .meta{font-size:12px;color:var(--muted);margin-top:8px;display:flex;justify-content:space-between}
+  .unread-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;margin-left:6px}
+
+  /* شاشة القراءة */
+  #reader{
+    position:fixed;inset:0;background:var(--bg);
+    transform:translateX(100%);transition:transform .3s ease;
+    z-index:20;overflow-y:auto;
+  }
+  #reader.open{transform:translateX(0)}
+  .reader-top{
+    position:sticky;top:0;background:var(--bg);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;border-bottom:1px solid var(--border);
+  }
+  .reader-top button{
+    background:none;border:none;font-size:20px;color:var(--text);cursor:pointer;padding:6px 10px;
+  }
+  .font-controls{display:flex;gap:8px;align-items:center}
+  #articleBody{
+    max-width:700px;margin:0 auto;padding:24px 20px 60px;
+    font-family:'Noto Naskh Arabic',serif;
+    line-height:1.9;
+    font-size:18px;
+  }
+  #articleBody h1{
+    font-family:'Cairo',sans-serif;
+    font-size:24px;margin-bottom:6px;color:var(--accent);
+  }
+  #articleBody .art-sender{color:var(--gold);font-size:14px;margin-bottom:2px;font-family:'Cairo',sans-serif}
+  #articleBody .art-date{color:var(--muted);font-size:13px;margin-bottom:20px;font-family:'Cairo',sans-serif}
+  #articleBody img{max-width:100%;border-radius:10px;margin:10px 0}
+  #articleBody a{color:var(--accent)}
+  #articleText, #articleText *{
+    font-family:'Noto Naskh Arabic',serif !important;
+    color:var(--text) !important;
+    background:transparent !important;
+  }
+  #articleText p{margin-bottom:18px}
+  #loading, #empty{text-align:center;padding:60px 20px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📰 قارئ النشرات</h1>
+  <button id="themeBtn">🌙 ليلي</button>
+</header>
+
+<div id="list">
+  <div id="loading">جاري تحميل المقالات...</div>
+</div>
+
+<div id="reader">
+  <div class="reader-top">
+    <button id="closeBtn">→ رجوع</button>
+    <div class="font-controls">
+      <button id="fontMinus">أ-</button>
+      <button id="fontPlus">أ+</button>
+    </div>
+  </div>
+  <div id="articleBody"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ghvyijfgeorvlfvnvipr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_CIiuHbOK_Ug7P7PEp-NpRQ_a2STG6FI';
+
+let articles = [];
+let currentFontSize = 18;
+
+async function loadArticles(){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/articles?select=*&order=received_at.desc&limit=50`, {
+      headers:{
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY
+      }
+    });
+    articles = await res.json();
+    renderList();
+  }catch(e){
+    document.getElementById('list').innerHTML = '<div id="empty">حدث خطأ في التحميل ⚠️</div>';
+    console.error(e);
+  }
+}
+
+function stripHtml(html){
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html || '';
+  return tmp.textContent || tmp.innerText || '';
+}
+
+// ننظف النص من الروابط الطويلة ونعيد صياغته كفقرات نظيفة بخطنا نحن
+function formatContentAsParagraphs(text){
+  if(!text) return '<p>لا يوجد محتوى نصي.</p>';
+  const cleaned = text.replace(/\r/g,'').replace(/\n{3,}/g,'\n\n').trim();
+  const paragraphs = cleaned.split(/\n\s*\n/);
+  return paragraphs.map(p => {
+    const escaped = p
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\n/g,'<br>');
+    return `<p>${escaped}</p>`;
+  }).join('');
+}
+
+function formatDate(dateStr){
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('ar-EG', {day:'numeric', month:'long', year:'numeric'});
+}
+
+function renderList(){
+  const list = document.getElementById('list');
+  if(articles.length === 0){
+    list.innerHTML = '<div id="empty">لا توجد مقالات بعد 📭</div>';
+    return;
+  }
+  list.innerHTML = articles.map((a, i) => `
+    <div class="card" onclick="openArticle(${i})">
+      <div class="sender">${a.sender_name || a.sender || 'مجهول'}</div>
+      <h2>${!a.is_read ? '<span class="unread-dot"></span>' : ''}${a.title || 'بدون عنوان'}</h2>
+      <div class="excerpt">${(a.content_text || stripHtml(a.content_html || '')).replace(/\n+/g,' ').trim().slice(0,140)}</div>
+      <div class="meta"><span>${formatDate(a.received_at)}</span></div>
+    </div>
+  `).join('');
+}
+
+async function openArticle(index){
+  const a = articles[index];
+  const body = document.getElementById('articleBody');
+  const bodyText = a.content_text || stripHtml(a.content_html);
+  body.innerHTML = `
+    <h1>${a.title || 'بدون عنوان'}</h1>
+    <div class="art-sender">${a.sender_name || a.sender || ''}</div>
+    <div class="art-date">${formatDate(a.received_at)}</div>
+    <div id="articleText">${formatContentAsParagraphs(bodyText)}</div>
+  `;
+  currentFontSize = 18;
+  document.getElementById('articleText').style.fontSize = currentFontSize + 'px';
+  document.getElementById('reader').classList.add('open');
+
+  if(!a.is_read){
+    a.is_read = true;
+    renderList();
+    fetch(`${SUPABASE_URL}/rest/v1/articles?id=eq.${a.id}`, {
+      method:'PATCH',
+      headers:{
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({is_read:true})
+    });
+  }
+}
+
+document.getElementById('closeBtn').onclick = () => {
+  document.getElementById('reader').classList.remove('open');
+};
+
+document.getElementById('fontPlus').onclick = () => {
+  currentFontSize = Math.min(currentFontSize + 2, 28);
+  const el = document.getElementById('articleText');
+  if(el) el.style.fontSize = currentFontSize + 'px';
+};
+document.getElementById('fontMinus').onclick = () => {
+  currentFontSize = Math.max(currentFontSize - 2, 14);
+  const el = document.getElementById('articleText');
+  if(el) el.style.fontSize = currentFontSize + 'px';
+};
+
+document.getElementById('themeBtn').onclick = () => {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = isDark ? '🌙 ليلي' : '☀️ نهاري';
+};
+
+loadArticles();
+</script>
+
+</body>
+</html>
