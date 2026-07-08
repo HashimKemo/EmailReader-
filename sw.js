@@ -1,5 +1,5 @@
 const CACHE_NAME = 'app-cache-v1';
-const urlsToCache = ['/', '/index.html'];
+const urlsToCache = ['/EmailReader-/', '/EmailReader-/index.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
