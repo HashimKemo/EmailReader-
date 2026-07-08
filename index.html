@@ -155,13 +155,25 @@ async function loadArticles(){
       }
     });
     articles = await res.json();
+    localStorage.setItem('cached_articles', JSON.stringify(articles));
+    localStorage.setItem('cached_at', new Date().toISOString());
     renderList();
   }catch(e){
-    document.getElementById('list').innerHTML = '<div id="empty">حدث خطأ في التحميل ⚠️</div>';
+    const cached = localStorage.getItem('cached_articles');
+    if(cached){
+      articles = JSON.parse(cached);
+      const cachedAt = localStorage.getItem('cached_at');
+      renderList();
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background:#c9a227;color:#fff;padding:8px 16px;text-align:center;font-size:13px;';
+      banner.textContent = `📴 وضع اوفلاين — آخر تحديث: ${formatDate(cachedAt)}`;
+      document.getElementById('list').prepend(banner);
+    } else {
+      document.getElementById('list').innerHTML = '<div id="empty">لا يوجد اتصال ولا توجد بيانات محفوظة ⚠️</div>';
+    }
     console.error(e);
   }
 }
-
 function stripHtml(html){
   const tmp = document.createElement('div');
   tmp.innerHTML = html || '';
